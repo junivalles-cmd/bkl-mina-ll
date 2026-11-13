@@ -75,7 +75,7 @@ Convenciones: llaves `id uuid` (salvo donde se indica), `created_at/updated_at t
 | `bkl` | id, numero int (secuencia; se muestra `BKL-001`), equipo_id, actividad, sistema, prioridad (A/B/C), responsable_id, planner_id, hh_estimadas, dias_estimados, fecha_ingreso, inicio_programado, inicio_original, inicio_real, fin_real, hh_reales, ejecutado_por, horometro, no_ot, observaciones, estado_manual (null / pendiente_repuestos / cerrado / cancelado) | FK equipo, perfil×2; CHECK: `estado_manual='cerrado'` exige fin_real, ejecutado_por y hh_reales; fin_real ≥ inicio_real |
 | `bkl_tarea` | id, bkl_id, orden, descripcion, hecha bool, observacion | FK bkl ON DELETE CASCADE; único (bkl_id, orden) |
 | `bkl_repuesto` | id, bkl_id, tarea_orden int null, codigo_gp, numero_parte, descripcion, cantidad (>0), almacen, ubicacion, precio_usd (≥0), stock (disponible/pedir), solicitud_id null, kit_listo bool | FK bkl CASCADE, FK solicitud_compra |
-| `solicitud_compra` | id, numero int único (se muestra `V-0165`), fecha, equipo_id, prioridad (emergencia/critica/normal), proveedor, estado (solicitada, cotizada, aprobada, oc_emitida, en_transito, recibida, cancelada), drq, no_oc, fecha_estimada, fecha_recibida, observaciones | FK equipo |
+| `solicitud_compra` | id, numero int único (consecutivo propio de la app, se muestra `SCB-0001`), numero_maestro text null (el V-#### que le dé el maestro, se anota después), fecha, equipo_id, prioridad (emergencia/critica/normal), proveedor, estado (solicitada, cotizada, aprobada, oc_emitida, en_transito, recibida, cancelada), drq, no_oc, fecha_estimada, fecha_recibida, observaciones | FK equipo |
 | `solicitud_bkl` | solicitud_id, bkl_id | PK compuesta; una SC puede cubrir varios BKL del mismo equipo (Ref. BKL) |
 | `semana_congelada` | id, anio, semana, congelada_en, congelada_por | único (anio, semana) |
 | `semana_item` | semana_id, bkl_id, responsable_id, hh_plan, costo_usd | PK (semana_id, bkl_id); valores copiados al congelar (foto) |
@@ -110,7 +110,7 @@ tests/                unitarias del dominio, de servicios con repos en memoria, 
 **Clases de dominio clave**
 - `Bkl`: `estado()`, `situacion(hoy)`, `costoUsd()`, `hh()`, `finProgramado()`, `repuestosCompletos()`, `puedeProgramarse()`, `puedeCongelarse()`, `reprogramar(nuevaFecha)`, `registrarInicio()`, `registrarFin()`, `cerrar()`, `cancelar()`, `puntaje(hoy)`. Lanza `ReglaNegocioError` cuando una acción viola una regla.
 - `Repuesto`: `total()`, `estado(sc?)` → DISPONIBLE / POR PEDIR / `SC V-0165 · APROBADA` / RECIBIDO.
-- `SolicitudCompra`: `numeroTexto()` (`V-` + 4 dígitos), `avanzar(estado)`, `recibir(fecha)`.
+- `SolicitudCompra`: `numeroTexto()` (`SCB-` + 4 dígitos), `avanzar(estado)`, `recibir(fecha)`.
 - `SemanaCongelada`: `static congelar(anio, semana, bkls)` (solo BKL de esa semana, no cancelados, repuestos completos; devuelve también los excluidos con motivo), `cumplimiento(bkls)`, `hhIrrumpieron(bkls)`.
 - `Capacidad`: `netaSemanal(perfil, parametros)`, `carga(responsable, semana, bkls)`.
 - `Backlog`: `semanasTotal()`, `semanasListas()`.
@@ -125,7 +125,7 @@ tests/                unitarias del dominio, de servicios con repos en memoria, 
 3. **HH** = hh_estimadas, o dias_estimados × `hh_por_dia` (8) si está vacía.
 4. **Fin programado** = inicio_programado + max(1, dias) − 1.
 5. **Repuesto**: total = cantidad × precio_usd. stock vacío al pegar: con almacén → DISPONIBLE, sin almacén → PEDIR.
-6. **Estado del repuesto**: DISPONIBLE si stock=disponible; si pedir: sin SC → POR PEDIR; SC recibida → RECIBIDO (SC V-####); SC cancelada → POR PEDIR; otro → `SC V-#### · <estado>`.
+6. **Estado del repuesto**: DISPONIBLE si stock=disponible; si pedir: sin SC → POR PEDIR; SC recibida → RECIBIDO (SCB-####); SC cancelada → POR PEDIR; otro → `SCB-#### · <estado>`.
 7. **Estado de repuestos del BKL**: SIN REPUESTOS / FALTA PEDIR n / EN ESPERA: n EN SC / COMPLETOS.
 8. **Estado del BKL** (calculado): estado_manual cerrado/cancelado manda; fin_real → EJECUTADO; inicio_real → EN EJECUCIÓN; repuestos por pedir o en SC, o estado_manual pendiente_repuestos → PENDIENTE REPUESTOS; con inicio_programado → PROGRAMADO; si no → LISTO PARA PROGRAMAR.
 9. **Situación** (vs hoy): CANCELADO; EJECUTADO o EJECUTADO CON RETRASO (fin_real > inicio_original + dias − 1); RETRASADO / RETRASADO – REPUESTOS (fin programado < hoy y no ejecutado); EN EJECUCIÓN; ESPERA REPUESTOS; PENDIENTE.
@@ -174,7 +174,7 @@ Orden de columnas para pegar: Cód. GP, No. parte, Descripción, Cant., Tarea, A
 ## 10. Integraciones
 
 - **Importar V17** (una vez): lee BD BKL, BD TAREAS, BD REPUESTOS, PEDIDOS SC, SEMANA CONGELADA y EQUIPOS del libro y los carga respetando números.
-- **SC hacia el maestro**: la app numera las SC (consecutivo configurable, arranca en el siguiente V-#### del maestro) y exporta cada SC en Excel con las columnas de BASEDEDATOS del maestro (SOLICITUD, EQUIPO, FECHA SC, JUSTIFICACION, Descripcion, CODIGO GP, SISTEMA, COMPONENTE, DESCRIPCION, UND MEDIDA, N° DE PARTE, CANTIDAD, REF. BKL) para pegarlas allí, más una vista imprimible. *(Ver pregunta abierta 1.)*
+- **SC hacia el maestro**: la app numera las SC con su propio consecutivo `SCB-####` (independiente del V-#### del maestro) y exporta cada SC en Excel con las columnas de BASEDEDATOS del maestro (SOLICITUD, EQUIPO, FECHA SC, JUSTIFICACION, Descripcion, CODIGO GP, SISTEMA, COMPONENTE, DESCRIPCION, UND MEDIDA, N° DE PARTE, CANTIDAD, REF. BKL) para pegarlas allí, más una vista imprimible. El V-#### que el maestro asigne se anota en `numero_maestro` para trazabilidad.
 - **Correos**: funciones programadas de Supabase envían el recordatorio del jueves, el resumen del lunes y los pendientes del viernes (fase 4).
 
 ## 11. Seguridad
@@ -205,6 +205,7 @@ Cada fase termina usable, con pruebas en verde y publicada.
 
 Estructura interna de componentes, estilos visuales dentro de la paleta CONEQUISA (azul #1F3A5F, dorado #B8892B), nombres de funciones auxiliares, mensajes de error, orden de las migraciones.
 
-## 15. Preguntas abiertas
+## 15. Preguntas resueltas
 
-1. **SC y el maestro**: ¿la app pasa a llevar el consecutivo V-#### y el maestro solo recibe las filas, o el número lo sigue dando el maestro y la app solo lo registra?
+1. **SC y el maestro** (12/11/2026, Junior): la SC de la app lleva **otro consecutivo** (`SCB-####`), independiente del V-#### del maestro; el V-#### se registra aparte.
+2. **Supabase**: proyecto `jhybnsdbiufberseierg` con llave publicable. Desde el entorno de construcción no hay acceso de red a Supabase: las migraciones se entregan como un SQL único para el editor SQL de Supabase y se prueban localmente con PGlite.
