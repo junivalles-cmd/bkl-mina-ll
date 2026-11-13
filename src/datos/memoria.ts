@@ -1,4 +1,5 @@
 import { Bkl } from '../dominio/bkl';
+import type { EstadoSc } from '../dominio/repuesto';
 import { PARAMETROS_DEF, type Parametros } from '../dominio/parametros';
 import type { Equipo, EventoBkl, Perfil, Repos } from './tipos';
 
@@ -17,6 +18,15 @@ export function reposEnMemoria(inicial: { equipos?: Equipo[]; perfiles?: Perfil[
     bkls.set(b.d.numero!, new Bkl({ ...b.datos(), id: b.d.id ?? nuevoId() }));
     siguiente = Math.max(siguiente, b.d.numero! + 1);
   }
+  const scs: { id: string; numero: number; estado: EstadoSc; numeroMaestro: string }[] = [];
+  const conSc = (b: Bkl) => {
+    const d = b.datos();
+    d.repuestos = d.repuestos.map((r) => {
+      const s = scs.find((x) => x.id === r.solicitudId);
+      return { ...r, sc: s ? { numero: s.numero, estado: s.estado } : null };
+    });
+    return new Bkl(d);
+  };
   const ev = (n: number, tipo: string, detalle: Record<string, unknown> = {}) =>
     eventos.set(n, [...(eventos.get(n) ?? []), { tipo, detalle, fecha: new Date().toISOString(), usuario: inicial.actual ?? null }]);
 
@@ -39,9 +49,20 @@ export function reposEnMemoria(inicial: { equipos?: Equipo[]; perfiles?: Perfil[
       async obtener() { return { ...parametros }; },
       async guardar(p) { parametros = { ...p }; },
     },
+    solicitudes: {
+      async importar(lista) {
+        const m = new Map<string, string>();
+        for (const s of lista) {
+          const id = nuevoId();
+          scs.push({ id, numero: scs.length + 1, estado: s.estado, numeroMaestro: s.numeroMaestro });
+          m.set(s.numeroMaestro, id);
+        }
+        return m;
+      },
+    },
     bkls: {
-      async listar() { return [...bkls.values()].map((b) => new Bkl(b.datos())); },
-      async obtener(numero) { const b = bkls.get(numero); return b ? new Bkl(b.datos()) : null; },
+      async listar() { return [...bkls.values()].map(conSc); },
+      async obtener(numero) { const b = bkls.get(numero); return b ? conSc(b) : null; },
       async guardar(b) {
         const d = b.datos();
         const nuevo = !d.id;

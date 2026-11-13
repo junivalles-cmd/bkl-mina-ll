@@ -1,5 +1,6 @@
 import type { Bkl, Prioridad } from '../dominio/bkl';
 import type { Parametros } from '../dominio/parametros';
+import type { EstadoSc } from '../dominio/repuesto';
 
 export type Rol = 'admin' | 'planner' | 'responsable' | 'supervisor' | 'almacen' | 'compras' | 'jefatura';
 export const ROLES: Rol[] = ['admin', 'planner', 'responsable', 'supervisor', 'almacen', 'compras', 'jefatura'];
@@ -27,6 +28,20 @@ export interface Perfil {
   activo: boolean;
 }
 
+export interface ScImportada {
+  numeroMaestro: string;
+  fecha: string | null;
+  equipoId: string;
+  prioridad: 'emergencia' | 'critica' | 'normal';
+  proveedor: string | null;
+  estado: EstadoSc;
+  noOc: string | null;
+  fechaEstimada: string | null;
+  fechaRecibida: string | null;
+  observaciones: string | null;
+  bklNumeros: number[];
+}
+
 export interface EventoBkl {
   tipo: string;
   detalle: Record<string, unknown>;
@@ -47,6 +62,10 @@ export interface Repos {
   parametros: {
     obtener(): Promise<Parametros>;
     guardar(p: Parametros): Promise<void>;
+  };
+  solicitudes: {
+    /** Crea SC importadas (con su V-#### en numero_maestro); devuelve numero_maestro → id. */
+    importar(scs: ScImportada[]): Promise<Map<string, string>>;
   };
   bkls: {
     listar(): Promise<Bkl[]>;

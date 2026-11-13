@@ -4,7 +4,12 @@ import { CLAVES_PARAMETRO, PARAMETROS_DEF, type Parametros } from '../dominio/pa
 import { bklAFila, filaABkl, filaAEquipo, filaAPerfil, SELECT_BKL } from './mapeo';
 import type { Equipo, Repos } from './tipos';
 
-function revisar<T>(r: { data: T; error: { message: string } | null }): T {
+function revisar<T>(r: { data: T | null; error: { message: string } | null }): T {
+  if (r.error) throw new Error(traducirError(r.error.message));
+  return r.data as T;
+}
+
+function revisarOpcional<T>(r: { data: T | null; error: { message: string } | null }): T | null {
   if (r.error) throw new Error(traducirError(r.error.message));
   return r.data;
 }
@@ -58,15 +63,33 @@ export function reposSupabase(sb: SupabaseClient): Repos {
         revisar(await sb.from('parametro').upsert(Object.entries(CLAVES_PARAMETRO).map(([k, clave]) => ({ clave, valor: p[k as keyof Parametros] }))));
       },
     },
+    solicitudes: {
+      async importar(lista) {
+        const m = new Map<string, string>();
+        if (!lista.length) return m;
+        const filas = revisar(await sb.from('solicitud_compra').insert(lista.map((s) => ({
+          numero_maestro: s.numeroMaestro, fecha: s.fecha ?? undefined, equipo_id: s.equipoId, prioridad: s.prioridad, proveedor: s.proveedor,
+          estado: s.estado, no_oc: s.noOc, fecha_estimada: s.fechaEstimada, fecha_recibida: s.fechaRecibida, observaciones: s.observaciones,
+        }))).select('id, numero_maestro')) as { id: string; numero_maestro: string }[];
+        for (const f of filas) m.set(f.numero_maestro, f.id);
+        const enlaces = lista.flatMap((s) => s.bklNumeros.map((n) => ({ sc: m.get(s.numeroMaestro)!, n })));
+        if (enlaces.length) {
+          const bk = revisar(await sb.from('bkl').select('id, numero').in('numero', [...new Set(enlaces.map((e) => e.n))])) as { id: string; numero: number }[];
+          const filasEnlace = enlaces.flatMap((e) => { const b = bk.find((x) => x.numero === e.n); return b ? [{ solicitud_id: e.sc, bkl_id: b.id }] : []; });
+          if (filasEnlace.length) revisar(await sb.from('solicitud_bkl').upsert(filasEnlace));
+        }
+        return m;
+      },
+    },
     bkls: {
       async listar() { return revisar(await sb.from('bkl').select(SELECT_BKL).order('numero')).map(filaABkl); },
       async obtener(numero) {
-        const f = revisar(await sb.from('bkl').select(SELECT_BKL).eq('numero', numero).maybeSingle());
+        const f = revisarOpcional(await sb.from('bkl').select(SELECT_BKL).eq('numero', numero).maybeSingle());
         return f ? filaABkl(f) : null;
       },
       async guardar(b: Bkl) { return Number(revisar(await sb.rpc('guardar_bkl', { d: bklAFila(b) }))); },
       async eventos(numero) {
-        const f = revisar(await sb.from('bkl').select('bkl_evento(tipo, detalle, fecha, perfil:usuario_id(nombre))').eq('numero', numero).maybeSingle()) as
+        const f = revisarOpcional(await sb.from('bkl').select('bkl_evento(tipo, detalle, fecha, perfil:usuario_id(nombre))').eq('numero', numero).maybeSingle()) as
           { bkl_evento: { tipo: string; detalle: Record<string, unknown>; fecha: string; perfil: { nombre: string } | null }[] } | null;
         return (f?.bkl_evento ?? []).sort((a, b) => a.fecha.localeCompare(b.fecha)).map((e) => ({ tipo: e.tipo, detalle: e.detalle, fecha: e.fecha, usuario: e.perfil?.nombre ?? null }));
       },

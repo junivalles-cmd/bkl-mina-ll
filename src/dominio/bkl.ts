@@ -29,7 +29,8 @@ export interface BklDatos {
   plannerId: string | null;
   hhEstimadas: number | null;
   diasEstimados: number;
-  tecnicos: number | null;
+  /** Nombres de los técnicos asignados (texto libre, como en el V17). */
+  tecnicos: string | null;
   fechaIngreso: Fecha;
   inicioProgramado: Fecha | null;
   inicioOriginal: Fecha | null;

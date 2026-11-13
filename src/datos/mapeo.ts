@@ -38,7 +38,7 @@ export function filaABkl(f: Fila): Bkl {
     plannerId: f.planner_id ?? null,
     hhEstimadas: num(f.hh_estimadas),
     diasEstimados: Number(f.dias_estimados ?? 1),
-    tecnicos: num(f.tecnicos),
+    tecnicos: f.tecnicos ?? null,
     fechaIngreso: f.fecha_ingreso,
     inicioProgramado: f.inicio_programado ?? null,
     inicioOriginal: f.inicio_original ?? null,
