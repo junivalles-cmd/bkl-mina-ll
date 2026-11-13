@@ -171,7 +171,7 @@ create table public.bkl_evento (
   bkl_id uuid not null references public.bkl(id) on delete cascade,
   tipo public.tipo_evento not null,
   detalle jsonb not null default '{}'::jsonb,
-  usuario_id uuid default auth.uid(),
+  usuario_id uuid default auth.uid() references public.perfil(id) on delete set null,
   fecha timestamptz not null default now()
 );
 create index on public.bkl_evento (bkl_id);
