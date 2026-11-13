@@ -82,3 +82,18 @@ describe('importarV17', () => {
     expect(r2.avisos.join('\n')).toMatch(/BKL-007 ya existe/);
   });
 });
+
+describe('limpiarLibro', () => {
+  it('quita elementos anidados sin romper el XML', async () => {
+    const { quitarElementos } = await import('../../src/servicios/importarV17');
+    const x = '<ws><a/><mc:AlternateContent x="1"><mc:Choice><controls><mc:AlternateContent><c/></mc:AlternateContent></controls></mc:Choice></mc:AlternateContent><b>1</b><drawing r:id="2"/></ws>';
+    expect(quitarElementos(quitarElementos(x, 'mc:AlternateContent'), 'drawing')).toBe('<ws><a/><b>1</b></ws>');
+    expect(quitarElementos('<x><drawingX/><drawing/></x>', 'drawing')).toBe('<x><drawingX/></x>');
+  });
+  it('abre .xlsm reales con botones de macros', async () => {
+    for (const f of ['tests/fixtures/libro_con_botones.xlsm', 'tests/fixtures/FORMATO_BKL_usuario.xlsm']) {
+      const d = await leerV17(buf(readFileSync(f)));
+      expect(d.equipos.length, f).toBeGreaterThan(0);
+    }
+  });
+});

@@ -92,20 +92,52 @@ const ESTADOS_SC: Record<string, EstadoSc> = {
   'EN TRÁNSITO': 'en_transito', 'EN TRANSITO': 'en_transito', RECIBIDA: 'recibida', CANCELADA: 'cancelada',
 };
 
-/** Quita dibujos, botones, comentarios y macros: ExcelJS falla con ellos y no hacen falta para leer datos. */
+/** Quita del XML cada elemento <tag ...>...</tag> (o <tag/>) respetando anidamiento del mismo tag. */
+export function quitarElementos(xml: string, tag: string): string {
+  const abre = new RegExp(`<${tag}(?=[\\s>/])`, 'g');
+  let salida = '';
+  let pos = 0;
+  for (;;) {
+    abre.lastIndex = pos;
+    const m = abre.exec(xml);
+    if (!m) break;
+    const ini = m.index;
+    const finApertura = xml.indexOf('>', ini);
+    if (finApertura < 0) break;
+    salida += xml.slice(pos, ini);
+    if (xml[finApertura - 1] === '/') { pos = finApertura + 1; continue; }
+    // buscar el cierre correspondiente contando aperturas y cierres del mismo tag
+    const patron = new RegExp(`<${tag}(?=[\\s>/])[^>]*?(/?)>|</${tag}\\s*>`, 'g');
+    patron.lastIndex = finApertura + 1;
+    let nivel = 1;
+    let fin = xml.length;
+    let t: RegExpExecArray | null;
+    while (nivel > 0 && (t = patron.exec(xml))) {
+      if (t[0].startsWith('</')) nivel--;
+      else if (t[1] !== '/') nivel++;
+      if (nivel === 0) fin = t.index + t[0].length;
+    }
+    pos = fin;
+  }
+  return salida + xml.slice(pos);
+}
+
+const ETIQUETAS_SOBRANTES = ['mc:AlternateContent', 'controls', 'oleObjects', 'drawing', 'legacyDrawing', 'legacyDrawingHF', 'tableParts', 'picture'];
+
+/** Quita dibujos, botones, comentarios, tablas y macros: ExcelJS falla con ellos y no hacen falta para leer datos. */
 export async function limpiarLibro(buf: ArrayBuffer): Promise<ArrayBuffer> {
   const zip = await JSZip.loadAsync(buf);
   for (const nombre of Object.keys(zip.files)) {
-    if (/^xl\/(drawings|ctrlProps|activeX|comments|threadedComments|persons|tables|charts|media)\b|^xl\/vbaProject\.bin$|^xl\/comments\d*\.xml$/.test(nombre)) zip.remove(nombre);
+    if (/^xl\/(drawings|ctrlProps|activeX|comments|threadedComments|persons|tables|charts|media|embeddings)\b|^xl\/vbaProject\.bin$|^xl\/comments\d*\.xml$/.test(nombre)) zip.remove(nombre);
   }
   for (const nombre of Object.keys(zip.files)) {
     if (/^xl\/worksheets\/sheet\d+\.xml$/.test(nombre)) {
       let x = await zip.file(nombre)!.async('string');
-      x = x.replace(/<drawing [^>]*\/>|<legacyDrawing[^>]*\/>|<legacyDrawingHF[^>]*\/>|<controls>[\s\S]*?<\/controls>|<tableParts[\s\S]*?<\/tableParts>|<tableParts[^>]*\/>|<mc:AlternateContent[\s\S]*?<\/mc:AlternateContent>/g, '');
+      for (const t of ETIQUETAS_SOBRANTES) x = quitarElementos(x, t);
       zip.file(nombre, x);
     } else if (/^xl\/worksheets\/_rels\/.*\.rels$/.test(nombre)) {
       let x = await zip.file(nombre)!.async('string');
-      x = x.replace(/<Relationship [^>]*Type="[^"]*\/(drawing|vmlDrawing|ctrlProp|comments|threadedComment|control|table)"[^>]*\/>/g, '');
+      x = x.replace(/<Relationship [^>]*Type="[^"]*\/(drawing|vmlDrawing|ctrlProp|comments|threadedComment|control|table|oleObject|image|package)"[^>]*\/>/g, '');
       zip.file(nombre, x);
     }
   }
