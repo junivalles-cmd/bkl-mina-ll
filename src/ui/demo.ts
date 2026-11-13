@@ -23,7 +23,7 @@ export function datosDemo(hoy: Fecha) {
     new Bkl({ ...Bkl.nuevo({ equipoId, actividad, prioridad, responsableId: numero % 2 ? 'p1' : 'p2', plannerId: 'p0' }, P, sumarDias(hoy, -diasAtras)).datos(), numero, ...extra });
   const bkls = [
     b(1, 'e1', 'Cambio de planetarios delanteros, balineras de patente y retenedores', 'B', 3, {
-      sistema: 'Eje delantero', hhEstimadas: 16, diasEstimados: 2,
+      sistema: 'Eje delantero', hhEstimadas: 16, diasEstimados: 2, origen: 'inspeccion', origenRef: 'INSP-0457',
       tareas: [
         { orden: 1, descripcion: 'Desmontaje de mandos finales delanteros y reemplazo de juego planetario', hecha: false },
         { orden: 2, descripcion: 'Reemplazo de balineras y pines de patente', hecha: false },
@@ -35,8 +35,8 @@ export function datosDemo(hoy: Fecha) {
         { codigoGp: '81384', numeroParte: '4907460', descripcion: 'CORONA MANDO FINAL', cantidad: 2, tareaOrden: 1, almacen: '', ubicacion: '', precioUsd: 812.93, stock: 'pedir' },
       ],
     }),
-    b(2, 'e2', 'Reparación de fuga en cilindro de volteo', 'A', 25, { hhEstimadas: 6, inicioProgramado: sumarDias(hoy, -4), inicioOriginal: sumarDias(hoy, -4) }),
-    b(3, 'e3', 'Cambio de cuchillas y cantoneras', 'C', 10, { inicioProgramado: sumarDias(hoy, 2), repuestos: [
+    b(2, 'e2', 'Reparación de fuga en cilindro de volteo', 'A', 25, { origen: 'reporte_falla', origenRef: 'IF-012', hhEstimadas: 6, inicioProgramado: sumarDias(hoy, -4), inicioOriginal: sumarDias(hoy, -4) }),
+    b(3, 'e3', 'Cambio de cuchillas y cantoneras', 'C', 10, { origen: 'checklist', inicioProgramado: sumarDias(hoy, 2), repuestos: [
       { codigoGp: '7001', numeroParte: '4T-3925', descripcion: 'CUCHILLA', cantidad: 6, tareaOrden: null, almacen: 'ALMACEN 13A', ubicacion: 'R3', precioUsd: 96.4, stock: 'disponible' },
     ] }),
     b(4, 'e4', 'Inspección y ajuste de tren de rodaje', 'B', 40, { inicioReal: sumarDias(hoy, -6), finReal: sumarDias(hoy, -5), hhReales: 7, ejecutadoPor: 'Gelber Cabrera', estadoManual: 'cerrado' }),

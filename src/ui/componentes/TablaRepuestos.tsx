@@ -1,5 +1,5 @@
 import { useMemo, useState, type ClipboardEvent } from 'react';
-import { PegadoExcel, leerNumero } from '../../dominio/pegadoExcel';
+import { CAMPOS_PEGADO, PegadoExcel, leerNumero, type CampoPegado } from '../../dominio/pegadoExcel';
 import { Repuesto, type RepuestoDatos } from '../../dominio/repuesto';
 import { dinero } from '../formato';
 
@@ -9,14 +9,32 @@ interface Props {
   /** Órdenes de tarea disponibles para la columna Tarea. */
   tareas: number[];
   editable?: boolean;
+  /** C$ por USD, para convertir precios pegados en córdobas. */
+  tipoCambio?: number;
+}
+
+const CLAVE_MAPEO = (n: number) => `bkl-mapeo-pegado-${n}`;
+function mapeoGuardado(n: number): CampoPegado[] | null {
+  try { const v = JSON.parse(localStorage.getItem(CLAVE_MAPEO(n)) ?? 'null'); return Array.isArray(v) && v.length === n ? v : null; } catch { return null; }
+}
+function guardarMapeo(m: CampoPegado[]) {
+  try { localStorage.setItem(CLAVE_MAPEO(m.length), JSON.stringify(m)); } catch { /* sin almacenamiento */ }
 }
 
 const vacio = (): RepuestoDatos => ({ codigoGp: '', numeroParte: '', descripcion: '', cantidad: 1, tareaOrden: null, almacen: '', ubicacion: '', precioUsd: 0, stock: 'disponible' });
 
-export function TablaRepuestos({ valor, onCambio, tareas, editable = false }: Props) {
+export function TablaRepuestos({ valor, onCambio, tareas, editable = false, tipoCambio = 36.62 }: Props) {
   const [pegando, setPegando] = useState(false);
   const [texto, setTexto] = useState('');
-  const vista = useMemo(() => PegadoExcel.parsear(texto), [texto]);
+  const [mapeoUsuario, setMapeoUsuario] = useState<CampoPegado[] | null>(null);
+  const analisis = useMemo(() => {
+    const a = PegadoExcel.analizar(texto);
+    const recordado = !a.encabezado ? mapeoGuardado(a.columnas) : null;
+    return recordado ? { ...a, mapeo: recordado, formato: 'Último orden de columnas que usaste' } : a;
+  }, [texto]);
+  const mapeo = mapeoUsuario && mapeoUsuario.length === analisis.columnas ? mapeoUsuario : analisis.mapeo;
+  const vista = useMemo(() => PegadoExcel.convertir({ filas: analisis.filas, mapeo }, tipoCambio), [analisis, mapeo, tipoCambio]);
+  const cerrarPegado = () => { setTexto(''); setMapeoUsuario(null); setPegando(false); };
   const total = valor.reduce((s, r) => s + new Repuesto(r).total(), 0);
 
   const cambiar = (i: number, c: Partial<RepuestoDatos>) => onCambio?.(valor.map((r, j) => (j === i ? { ...r, ...c } : r)));
@@ -26,11 +44,12 @@ export function TablaRepuestos({ valor, onCambio, tareas, editable = false }: Pr
     if (!editable) return;
     const t = e.clipboardData.getData('text/plain') || e.clipboardData.getData('text');
     const destino = e.target as HTMLElement;
-    if (!t.includes('\t') || (destino.tagName === 'TEXTAREA')) return;
+    if (destino.tagName === 'TEXTAREA') return;
+    if (!t.includes('\t') && !t.includes('\n')) return; // pegado normal dentro de una celda
     e.preventDefault();
-    const r = PegadoExcel.parsear(t);
-    if (r.filas.length) agregar(r.filas);
-    if (r.errores.length) { setTexto(t); setPegando(true); }
+    setMapeoUsuario(null);
+    setTexto(t);
+    setPegando(true);
   };
 
   const celda = 'border-b border-slate-100 px-1 py-1';
@@ -42,22 +61,53 @@ export function TablaRepuestos({ valor, onCambio, tareas, editable = false }: Pr
         <div className="mb-2 flex flex-wrap items-center gap-2 no-imprimir">
           <button type="button" className="btn" onClick={() => setPegando(true)}>📋 Pegar desde Excel</button>
           <button type="button" className="btn" onClick={() => agregar([vacio()])}>+ Fila</button>
-          <span className="text-xs text-slate-500">Orden: Cód. GP · No. parte · Descripción · Cant. · Tarea · Almacén · Ubicación · P. Und USD · Stock. También puedes pegar directo sobre la tabla.</span>
+          <span className="text-xs text-slate-500">Orden: Cód. GP · No. parte · Descripción · Cant. · Tarea · Almacén · Ubicación · P. Und USD · Stock. También acepta la lista de la Consulta de Repuestos y puedes pegar directo sobre la tabla.</span>
         </div>
       )}
       {pegando && (
         <div className="mb-3 rounded-lg border border-marca-100 bg-marca-50 p-3">
-          <label className="etiqueta" htmlFor="pegar-repuestos">Filas copiadas de Excel</label>
-          <textarea id="pegar-repuestos" className="campo h-28 font-mono text-xs" value={texto} onChange={(e) => setTexto(e.target.value)} placeholder="Copia las filas en Excel y pégalas aquí (Ctrl+V)" />
+          <label className="etiqueta" htmlFor="pegar-repuestos">Filas copiadas de Excel o de la Consulta de Repuestos</label>
+          <textarea id="pegar-repuestos" className="campo h-24 font-mono text-xs" value={texto} onChange={(e) => { setTexto(e.target.value); setMapeoUsuario(null); }} placeholder="Copia las filas (con o sin encabezado) y pégalas aquí con Ctrl+V" autoFocus />
+          {analisis.filas.length > 0 && (
+            <>
+              <p className="mt-2 text-xs text-slate-600">{analisis.formato}. Revisa qué es cada columna y cámbiala si hace falta:</p>
+              <div className="mt-1 max-h-64 overflow-auto rounded border border-slate-200 bg-white">
+                <table className="w-full text-xs">
+                  <thead className="sticky top-0 bg-slate-50">
+                    <tr>
+                      {Array.from({ length: analisis.columnas }, (_, i) => (
+                        <th key={i} className="p-1 align-bottom">
+                          {analisis.titulos[i] && <div className="mb-0.5 truncate font-normal text-slate-400">{analisis.titulos[i]}</div>}
+                          <select aria-label={`Columna ${i + 1}`} className={`w-full rounded border px-1 py-0.5 ${mapeo[i] === 'ignorar' ? 'border-slate-200 text-slate-400' : 'border-marca-600 font-semibold text-marca-700'}`}
+                            value={mapeo[i]} onChange={(e) => { const m = [...mapeo]; m[i] = e.target.value as CampoPegado; setMapeoUsuario(m); }}>
+                            {CAMPOS_PEGADO.map((c) => <option key={c.campo} value={c.campo}>{c.etiqueta}</option>)}
+                          </select>
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {analisis.filas.slice(0, 8).map((f, r) => (
+                      <tr key={r} className="border-t border-slate-100">
+                        {Array.from({ length: analisis.columnas }, (_, i) => <td key={i} className={`max-w-[160px] truncate p-1 ${mapeo[i] === 'ignorar' ? 'text-slate-300' : ''}`}>{f[i]}</td>)}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {analisis.filas.length > 8 && <p className="mt-1 text-xs text-slate-500">… y {analisis.filas.length - 8} filas más.</p>}
+            </>
+          )}
           <div className="mt-2 flex flex-wrap items-center gap-3 text-sm">
             <span>{vista.filas.length} {vista.filas.length === 1 ? 'fila lista' : 'filas listas'}</span>
-            <button type="button" className="btn-pri" disabled={!vista.filas.length} onClick={() => { agregar(vista.filas); setTexto(''); setPegando(false); }}>
+            <button type="button" className="btn-pri" disabled={!vista.filas.length} onClick={() => { if (mapeoUsuario) guardarMapeo(mapeoUsuario); agregar(vista.filas); cerrarPegado(); }}>
               Agregar {vista.filas.length}
             </button>
-            <button type="button" className="btn" onClick={() => { setTexto(''); setPegando(false); }}>Cerrar</button>
+            <button type="button" className="btn" onClick={cerrarPegado}>Cerrar</button>
+            {!mapeo.includes('cantidad') && vista.filas.length > 0 && <span className="text-xs text-amber-700">Sin columna de cantidad: se pone 1 y la cambias en la tabla.</span>}
           </div>
           {vista.errores.length > 0 && (
-            <ul className="mt-2 list-disc pl-5 text-xs text-red-700">{vista.errores.map((e) => <li key={e.fila}>{e.mensaje}</li>)}</ul>
+            <ul className="mt-2 list-disc pl-5 text-xs text-red-700">{vista.errores.slice(0, 15).map((e) => <li key={e.fila}>{e.mensaje}</li>)}</ul>
           )}
         </div>
       )}

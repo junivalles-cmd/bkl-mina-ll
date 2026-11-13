@@ -7,7 +7,7 @@ import { Aviso, Cargando } from '../componentes/Aviso';
 import { dinero, horas } from '../formato';
 import { fechaCorta } from '../../dominio/fechas';
 import { PARAMETROS_DEF } from '../../dominio/parametros';
-import type { EstadoBkl } from '../../dominio/bkl';
+import { ORIGENES, textoOrigen, type EstadoBkl } from '../../dominio/bkl';
 
 const ESTADOS: EstadoBkl[] = ['LISTO PARA PROGRAMAR', 'PROGRAMADO', 'PENDIENTE REPUESTOS', 'EN EJECUCIÓN', 'EJECUTADO', 'CERRADO', 'CANCELADO'];
 
@@ -21,6 +21,7 @@ export function Backlog() {
   const [estado, setEstado] = useState('ABIERTOS');
   const [resp, setResp] = useState('');
   const [prio, setPrio] = useState('');
+  const [origen, setOrigen] = useState('');
 
   const eqPorId = useMemo(() => new Map((equipos.data ?? []).map((e) => [e.id, e])), [equipos.data]);
   const pPorId = useMemo(() => new Map((perfiles.data ?? []).map((x) => [x.id, x])), [perfiles.data]);
@@ -31,13 +32,14 @@ export function Backlog() {
       .filter((b) => (estado === 'ABIERTOS' ? b.abierto() : estado === 'TODOS' ? true : b.estado() === estado))
       .filter((b) => !resp || b.d.responsableId === resp)
       .filter((b) => !prio || b.d.prioridad === prio)
+      .filter((b) => !origen || (origen === 'SIN' ? !b.d.origen : b.d.origen === origen))
       .filter((b) => {
         if (!t) return true;
         const e = eqPorId.get(b.d.equipoId);
         return [b.numeroTexto(), b.d.actividad, b.d.sistema, e?.codigo, e?.ahorrativo, e?.modelo, e?.familia].some((x) => x?.toLowerCase().includes(t));
       })
       .sort((a, b) => (b.puntaje(hoy) ?? -1) - (a.puntaje(hoy) ?? -1) || (b.d.numero ?? 0) - (a.d.numero ?? 0));
-  }, [bkls.data, texto, estado, resp, prio, eqPorId, hoy]);
+  }, [bkls.data, texto, estado, resp, prio, origen, eqPorId, hoy]);
 
   const totHh = filas.reduce((s, b) => s + b.hh(p), 0);
   const totCosto = filas.reduce((s, b) => s + b.costoUsd(), 0);
@@ -66,6 +68,10 @@ export function Backlog() {
           <select id="f-prio" className="campo" value={prio} onChange={(e) => setPrio(e.target.value)}>
             <option value="">Todas</option><option>A</option><option>B</option><option>C</option>
           </select></div>
+        <div><label className="etiqueta" htmlFor="f-origen">Origen</label>
+          <select id="f-origen" className="campo" value={origen} onChange={(e) => setOrigen(e.target.value)}>
+            <option value="">Todos</option>{ORIGENES.map((o) => <option key={o.valor} value={o.valor}>{o.etiqueta}</option>)}<option value="SIN">Sin origen</option>
+          </select></div>
       </div>
       <div className="grid grid-cols-3 gap-3">
         <div className="tarjeta"><div className="etiqueta">BKL</div><div className="text-2xl font-bold">{filas.length}</div></div>
@@ -84,7 +90,7 @@ export function Backlog() {
                 <tr key={b.d.numero} className="border-t border-slate-100 hover:bg-marca-50/50">
                   <td className="whitespace-nowrap px-3 py-2 font-semibold"><Link className="text-marca-600 hover:underline" to={`/bkl/${b.d.numero}`}>{b.numeroTexto()}</Link></td>
                   <td className="whitespace-nowrap">{e?.codigo}{e?.ahorrativo ? ` · ${e.ahorrativo}` : ''}<div className="text-xs text-slate-500">{e?.modelo}</div></td>
-                  <td className="max-w-xs truncate" title={b.d.actividad}>{b.d.actividad}</td>
+                  <td className="max-w-xs truncate" title={b.d.actividad}>{b.d.actividad}<div className="text-xs text-slate-500">{textoOrigen(b.d.origen)}</div></td>
                   <td><Insignia texto={b.d.prioridad} /></td>
                   <td className="whitespace-nowrap">{pPorId.get(b.d.responsableId ?? '')?.nombre ?? '—'}</td>
                   <td className="whitespace-nowrap">{fechaCorta(b.d.inicioProgramado)}</td>

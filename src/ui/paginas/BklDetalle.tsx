@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { fechaCorta } from '../../dominio/fechas';
+import { textoOrigen } from '../../dominio/bkl';
 import { PARAMETROS_DEF } from '../../dominio/parametros';
 import { useAccion, useBkl, useEquipos, useEventos, useParametros, usePerfiles } from '../consultas';
 import { useSesion } from '../contexto';
@@ -77,6 +78,7 @@ export function BklDetalle() {
         <div className="md:col-span-4"><div className="etiqueta">Actividad</div><div className="text-lg font-semibold">{d.actividad}</div></div>
         {dato('Equipo', e && `${e.codigo}${e.ahorrativo ? ' · ' + e.ahorrativo : ''} — ${e.familia} ${e.marca} ${e.modelo}`)}
         {dato('Ubicación', e?.ubicacion)}
+        {dato('Origen', [textoOrigen(d.origen), d.origenRef].filter(Boolean).join(' · '))}
         {dato('Sistema', d.sistema)}
         {dato('No. OT', d.noOt)}
         {dato('Responsable', nombre(d.responsableId))}

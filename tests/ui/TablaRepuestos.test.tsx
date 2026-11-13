@@ -23,7 +23,20 @@ describe('TablaRepuestos', () => {
   it('pegar directo sobre la tabla también funciona', () => {
     render(<Envoltura />);
     fireEvent.paste(screen.getByTestId('zona-repuestos'), { clipboardData: { getData: () => '1\tP-9\tFILTRO\t3\t\t\t\t10' } });
+    fireEvent.click(screen.getByRole('button', { name: /agregar 1/i }));
     expect(screen.getByDisplayValue('P-9')).toBeInTheDocument();
     expect(screen.getByText('USD 30.00')).toBeInTheDocument();
+  });
+  it('lista de la Consulta de Repuestos: reconoce columnas y permite cambiarlas', () => {
+    render(<Envoltura />);
+    fireEvent.click(screen.getByRole('button', { name: /pegar desde excel/i }));
+    fireEvent.change(screen.getByLabelText(/filas copiadas/i), { target: { value: 'CODIGO\tN° PARTE\tDESCRIPCION\tUND\tCANTIDAD\tALMACEN\tUBICACION\tAREA\n81380\t4364440\tTAPON\tEA\t2\tCONSIGNADO NIMAC\tC1-2A3\tCONSIGNADO NIMAC' } });
+    expect(screen.getByText(/reconocidas por el encabezado/i)).toBeInTheDocument();
+    expect((screen.getByLabelText('Columna 5') as HTMLSelectElement).value).toBe('cantidad');
+    fireEvent.change(screen.getByLabelText('Columna 8'), { target: { value: 'almacen' } });
+    fireEvent.change(screen.getByLabelText('Columna 6'), { target: { value: 'ignorar' } });
+    fireEvent.click(screen.getByRole('button', { name: /agregar 1/i }));
+    expect(screen.getByDisplayValue('4364440')).toBeInTheDocument();
+    expect(screen.getAllByDisplayValue('CONSIGNADO NIMAC')).toHaveLength(1);
   });
 });

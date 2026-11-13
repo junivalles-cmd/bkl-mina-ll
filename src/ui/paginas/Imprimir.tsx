@@ -2,6 +2,7 @@ import { Link, useParams } from 'react-router-dom';
 import { fechaCorta } from '../../dominio/fechas';
 import { PARAMETROS_DEF } from '../../dominio/parametros';
 import { Repuesto } from '../../dominio/repuesto';
+import { textoOrigen } from '../../dominio/bkl';
 import { useBkl, useEquipos, useParametros, usePerfiles } from '../consultas';
 import { Cargando } from '../componentes/Aviso';
 import { dinero, horas } from '../formato';
@@ -43,6 +44,7 @@ export function Imprimir() {
             <tr><td className={c + ' ' + et}>Equipo</td><td className={c}>{e?.codigo}{e?.ahorrativo ? ` · ${e.ahorrativo}` : ''}</td><td className={c + ' ' + et}>Familia / modelo</td><td className={c}>{e?.familia} · {e?.marca} {e?.modelo}</td><td className={c + ' ' + et}>Ubicación</td><td className={c}>{e?.ubicacion}</td></tr>
             <tr><td className={c + ' ' + et}>Prioridad</td><td className={c}>{d.prioridad}</td><td className={c + ' ' + et}>Responsable</td><td className={c}>{nombre(d.responsableId)}</td><td className={c + ' ' + et}>No. OT</td><td className={c}>{d.noOt}</td></tr>
             <tr><td className={c + ' ' + et}>Inicio prog.</td><td className={c}>{fechaCorta(d.inicioProgramado)}</td><td className={c + ' ' + et}>Fin prog.</td><td className={c}>{fechaCorta(b.finProgramado())}</td><td className={c + ' ' + et}>HH estimadas</td><td className={c}>{horas(b.hh(p))}</td></tr>
+            <tr><td className={c + ' ' + et}>Origen</td><td className={c} colSpan={3}>{[textoOrigen(d.origen), d.origenRef].filter(Boolean).join(' · ')}</td><td className={c + ' ' + et}>Técnicos</td><td className={c}>{d.tecnicos ?? ''}</td></tr>
             <tr><td className={c + ' ' + et}>Sistema</td><td className={c} colSpan={3}>{d.sistema}</td><td className={c + ' ' + et}>Horómetro</td><td className={c}>{d.horometro ?? ''}</td></tr>
             <tr><td className={c + ' ' + et}>Actividad</td><td className={c + ' font-semibold'} colSpan={5}>{d.actividad}</td></tr>
           </tbody>

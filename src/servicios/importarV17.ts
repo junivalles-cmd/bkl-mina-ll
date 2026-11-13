@@ -178,7 +178,7 @@ export async function leerV17(buf: ArrayBuffer): Promise<DatosV17> {
     if (!actividad) { errores.push(`${id}: sin actividad.`); return; }
     const fecha = (col: number) => aFecha(valor(f.getCell(col)));
     bkls.push({
-      numero: n, equipo: codigoEquipo(f.getCell(3)), actividad, prioridad: pr,
+      numero: n, equipo: codigoEquipo(f.getCell(3)), actividad, prioridad: pr, origen: null, origenRef: null,
       fechaIngreso: fecha(2) ?? fecha(14) ?? '2026-01-01',
       estadoManual: estadoManual(texto(f.getCell(7))), planner: texto(f.getCell(8)), responsable: texto(f.getCell(9)),
       noOt: texto(f.getCell(10)) || null, horometro: numero(f.getCell(12)), sistema: texto(f.getCell(13)),

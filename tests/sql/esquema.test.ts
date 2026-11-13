@@ -52,4 +52,10 @@ describe('esquema', () => {
     const r = (await db.query<{ anio: number; semana: number }>('select anio, semana from v_bkl where numero = 900')).rows[0];
     expect(r).toEqual({ anio: 2026, semana: 53 });
   });
+  it('origen del BKL se guarda y sale en la vista', async () => {
+    const n = (await db.query<{ n: number }>('select guardar_bkl($1) as n', [{ equipo_id: eq, actividad: 'Fuga detectada', prioridad: 'A', origen: 'inspeccion', origen_ref: 'INSP-0457' }])).rows[0].n;
+    const v = (await db.query<{ origen: string; origen_ref: string }>('select origen::text, origen_ref from v_bkl where numero = $1', [n])).rows[0];
+    expect(v).toEqual({ origen: 'inspeccion', origen_ref: 'INSP-0457' });
+    await expect(db.query('select guardar_bkl($1)', [{ equipo_id: eq, actividad: 'x', prioridad: 'A', origen: 'marciano' }])).rejects.toThrow();
+  });
 });

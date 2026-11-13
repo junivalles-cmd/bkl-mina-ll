@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Bkl, type BklDatos, type Prioridad, type Tarea } from '../../dominio/bkl';
+import { Bkl, ORIGENES, type BklDatos, type OrigenBkl, type Prioridad, type Tarea } from '../../dominio/bkl';
 import { fechaCorta, sumarDias } from '../../dominio/fechas';
 import { PARAMETROS_DEF } from '../../dominio/parametros';
 import type { RepuestoDatos } from '../../dominio/repuesto';
@@ -13,7 +13,7 @@ import { TablaRepuestos } from '../componentes/TablaRepuestos';
 import { horas } from '../formato';
 
 interface Form {
-  equipo: string; actividad: string; sistema: string; prioridad: Prioridad; responsableId: string; plannerId: string;
+  equipo: string; actividad: string; sistema: string; prioridad: Prioridad; origen: OrigenBkl | ''; origenRef: string; responsableId: string; plannerId: string;
   hhEstimadas: string; diasEstimados: string; tecnicos: string; fechaIngreso: string; inicioProgramado: string;
   noOt: string; horometro: string; observaciones: string; esperaRepuestos: boolean; tareas: Tarea[]; repuestos: RepuestoDatos[];
 }
@@ -31,7 +31,7 @@ export function BklFormulario() {
   const ir = useNavigate();
 
   const [f, setF] = useState<Form>(() => ({
-    equipo: '', actividad: '', sistema: '', prioridad: 'B', responsableId: '', plannerId: perfil?.id ?? '', hhEstimadas: '', diasEstimados: String(p.diasEstimadosDef),
+    equipo: '', actividad: '', sistema: '', prioridad: 'B', origen: '', origenRef: '', responsableId: '', plannerId: perfil?.id ?? '', hhEstimadas: '', diasEstimados: String(p.diasEstimadosDef),
     tecnicos: '', fechaIngreso: hoy, inicioProgramado: sumarDias(hoy, p.diasParaIniciar), noOt: '', horometro: '', observaciones: '', esperaRepuestos: false, tareas: [], repuestos: [],
   }));
 
@@ -41,7 +41,7 @@ export function BklFormulario() {
     const e = equipos.data.find((x) => x.id === b.d.equipoId);
     const d = b.d;
     setF({
-      equipo: e?.codigo ?? '', actividad: d.actividad, sistema: d.sistema, prioridad: d.prioridad, responsableId: d.responsableId ?? '', plannerId: d.plannerId ?? '',
+      equipo: e?.codigo ?? '', actividad: d.actividad, sistema: d.sistema, prioridad: d.prioridad, origen: d.origen ?? '', origenRef: d.origenRef ?? '', responsableId: d.responsableId ?? '', plannerId: d.plannerId ?? '',
       hhEstimadas: d.hhEstimadas?.toString() ?? '', diasEstimados: String(d.diasEstimados), tecnicos: d.tecnicos ?? '', fechaIngreso: d.fechaIngreso,
       inicioProgramado: d.inicioProgramado ?? '', noOt: d.noOt ?? '', horometro: d.horometro?.toString() ?? '', observaciones: d.observaciones ?? '',
       esperaRepuestos: d.estadoManual === 'pendiente_repuestos', tareas: d.tareas, repuestos: d.repuestos,
@@ -52,7 +52,7 @@ export function BklFormulario() {
   const equipo = useMemo(() => buscarEquipo(equipos.data ?? [], f.equipo), [equipos.data, f.equipo]);
 
   const datos = (): Partial<BklDatos> => ({
-    actividad: f.actividad.trim(), sistema: f.sistema.trim(), prioridad: f.prioridad, responsableId: f.responsableId || null, plannerId: f.plannerId || null,
+    actividad: f.actividad.trim(), sistema: f.sistema.trim(), prioridad: f.prioridad, origen: f.origen || null, origenRef: f.origenRef.trim() || null, responsableId: f.responsableId || null, plannerId: f.plannerId || null,
     hhEstimadas: n(f.hhEstimadas), diasEstimados: n(f.diasEstimados) ?? p.diasEstimadosDef, tecnicos: f.tecnicos.trim() || null, fechaIngreso: f.fechaIngreso,
     inicioProgramado: f.inicioProgramado || null, noOt: f.noOt.trim() || null, horometro: n(f.horometro), observaciones: f.observaciones.trim() || null,
     tareas: f.tareas.filter((t) => t.descripcion.trim()).map((t, i) => ({ ...t, orden: i + 1, descripcion: t.descripcion.trim() })), repuestos: f.repuestos,
@@ -109,6 +109,13 @@ export function BklFormulario() {
           <select id="prioridad" className="campo" value={f.prioridad} onChange={(e) => set('prioridad', e.target.value as Prioridad)}>
             <option value="A">A – Crítica</option><option value="B">B – Alta</option><option value="C">C – Programable</option>
           </select></div>
+        <div className="md:col-span-2"><label className="etiqueta" htmlFor="origen">Origen del BKL</label>
+          <select id="origen" className="campo" value={f.origen} onChange={(e) => set('origen', e.target.value as OrigenBkl | '')} required>
+            <option value="">— ¿De dónde salió? —</option>{ORIGENES.map((o) => <option key={o.valor} value={o.valor}>{o.etiqueta}</option>)}
+          </select></div>
+        <div className="md:col-span-2"><label className="etiqueta" htmlFor="origen-ref">No. de inspección / informe / check list</label>
+          <input id="origen-ref" className="campo" placeholder="Ej. INSP-0457, IF-012, CK 13/11" value={f.origenRef} onChange={(e) => set('origenRef', e.target.value)} /></div>
+        <div className="md:col-span-2" />
         <div className="md:col-span-2"><label className="etiqueta" htmlFor="sistema">Sistema / componente</label><input id="sistema" className="campo" value={f.sistema} onChange={(e) => set('sistema', e.target.value)} /></div>
         <div><label className="etiqueta" htmlFor="resp">Responsable</label>
           <select id="resp" className="campo" value={f.responsableId} onChange={(e) => set('responsableId', e.target.value)}>
@@ -133,7 +140,7 @@ export function BklFormulario() {
 
       <section className="tarjeta"><h2 className="mb-2 font-semibold">Tareas</h2><EditorTareas valor={f.tareas} onCambio={(t) => set('tareas', t)} /></section>
       <section className="tarjeta"><h2 className="mb-2 font-semibold">Repuestos</h2>
-        <TablaRepuestos valor={f.repuestos} onCambio={(r) => set('repuestos', r)} tareas={f.tareas.map((t) => t.orden)} editable />
+        <TablaRepuestos valor={f.repuestos} onCambio={(r) => set('repuestos', r)} tareas={f.tareas.map((t) => t.orden)} editable tipoCambio={p.tipoCambio} />
         {vista && <div className="mt-2 text-sm text-slate-600">Repuestos: <b>{vista.estadoRepuestos()}</b>{vista.porPedir() > 0 && ' — no se programa hasta que estén completos.'}</div>}
       </section>
     </form>

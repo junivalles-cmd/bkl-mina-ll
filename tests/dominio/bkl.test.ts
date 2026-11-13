@@ -88,6 +88,8 @@ describe('Bkl', () => {
     expect(() => mk({ tareas }).validar()).toThrow(/20 tareas/);
     expect(() => mk({ actividad: ' ' }).validar()).toThrow(/actividad/i);
     expect(() => mk({ repuestos: [rep({ tareaOrden: 3 })], tareas: [{ orden: 1, descripcion: 't', hecha: false }] }).validar()).toThrow(/tarea 3/);
+    expect(() => mk({ origen: 'xx' as never }).validar()).toThrow(/Origen/);
+    expect(() => mk({ origen: 'reporte_falla', origenRef: 'IF-12' }).validar()).not.toThrow();
     expect(() => mk().validar()).not.toThrow();
   });
 });

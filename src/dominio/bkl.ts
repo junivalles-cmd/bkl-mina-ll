@@ -8,6 +8,21 @@ export type EstadoManual = null | 'pendiente_repuestos' | 'cerrado' | 'cancelado
 export type EstadoBkl = 'CERRADO' | 'CANCELADO' | 'EJECUTADO' | 'EN EJECUCIÓN' | 'PENDIENTE REPUESTOS' | 'PROGRAMADO' | 'LISTO PARA PROGRAMAR';
 export type Situacion = 'CANCELADO' | 'EJECUTADO' | 'EJECUTADO CON RETRASO' | 'RETRASADO' | 'RETRASADO – REPUESTOS' | 'EN EJECUCIÓN' | 'ESPERA REPUESTOS' | 'PENDIENTE';
 
+export type OrigenBkl = 'inspeccion' | 'reporte_falla' | 'checklist' | 'pm' | 'predictivo' | 'operador' | 'otro';
+
+/** De dónde salió el BKL. */
+export const ORIGENES: { valor: OrigenBkl; etiqueta: string }[] = [
+  { valor: 'inspeccion', etiqueta: 'Inspección' },
+  { valor: 'reporte_falla', etiqueta: 'Reporte de falla' },
+  { valor: 'checklist', etiqueta: 'Check list' },
+  { valor: 'pm', etiqueta: 'PM / servicio' },
+  { valor: 'predictivo', etiqueta: 'Predictivo (aceite, filtros, tapones)' },
+  { valor: 'operador', etiqueta: 'Reporte de operador' },
+  { valor: 'otro', etiqueta: 'Otro' },
+];
+
+export const textoOrigen = (o: OrigenBkl | null | undefined) => ORIGENES.find((x) => x.valor === o)?.etiqueta ?? '';
+
 export const MAX_TAREAS = 20;
 export const PUNTOS_PRIORIDAD: Record<Prioridad, number> = { A: 50, B: 30, C: 10 };
 
@@ -25,6 +40,10 @@ export interface BklDatos {
   actividad: string;
   sistema: string;
   prioridad: Prioridad;
+  /** De dónde salió: inspección, reporte de falla, check list… */
+  origen: OrigenBkl | null;
+  /** No. de inspección, informe de falla, check list u OT de origen. */
+  origenRef: string | null;
   responsableId: string | null;
   plannerId: string | null;
   hhEstimadas: number | null;
@@ -69,7 +88,7 @@ export class Bkl {
     const fechaIngreso = e.fechaIngreso ?? hoy;
     const inicio = e.inicioProgramado === undefined ? sumarDias(fechaIngreso, p.diasParaIniciar) : e.inicioProgramado;
     return new Bkl({
-      sistema: '', responsableId: null, plannerId: null, hhEstimadas: null, tecnicos: null,
+      sistema: '', origen: null, origenRef: null, responsableId: null, plannerId: null, hhEstimadas: null, tecnicos: null,
       inicioReal: null, finReal: null, hhReales: null, ejecutadoPor: null, horometro: null, noOt: null,
       observaciones: null, estadoManual: null, tareas: [], repuestos: [], reprogramaciones: 0,
       ...e,
@@ -178,6 +197,7 @@ export class Bkl {
     if (!d.equipoId) throw new ReglaNegocioError('Falta el equipo.');
     if (!d.actividad.trim()) throw new ReglaNegocioError('Falta la actividad.');
     if (!['A', 'B', 'C'].includes(d.prioridad)) throw new ReglaNegocioError('Prioridad debe ser A, B o C.');
+    if (d.origen && !ORIGENES.some((o) => o.valor === d.origen)) throw new ReglaNegocioError('Origen no válido.');
     if (d.tareas.length > MAX_TAREAS) throw new ReglaNegocioError(`Máximo ${MAX_TAREAS} tareas por BKL.`);
     if (d.diasEstimados < 0 || (d.hhEstimadas !== null && d.hhEstimadas < 0)) throw new ReglaNegocioError('Días y HH no pueden ser negativos.');
     const ordenes = new Set(d.tareas.map((t) => t.orden));
