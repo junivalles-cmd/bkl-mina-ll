@@ -73,7 +73,7 @@ create table public.bkl (
   planner_id uuid references public.perfil(id),
   hh_estimadas numeric(8,1) check (hh_estimadas >= 0),
   dias_estimados numeric(5,1) not null default 1 check (dias_estimados >= 0),
-  tecnicos integer check (tecnicos >= 0),
+  tecnicos text,
   fecha_ingreso date not null default public.hoy(),
   inicio_programado date,
   inicio_original date,
@@ -174,7 +174,7 @@ create table public.bkl_evento (
   bkl_id uuid not null references public.bkl(id) on delete cascade,
   tipo public.tipo_evento not null,
   detalle jsonb not null default '{}'::jsonb,
-  usuario_id uuid default auth.uid(),
+  usuario_id uuid default auth.uid() references public.perfil(id) on delete set null,
   fecha timestamptz not null default now()
 );
 create index on public.bkl_evento (bkl_id);
@@ -251,7 +251,7 @@ begin
     values (coalesce((d->>'numero')::int, nextval('bkl_numero_seq')::int), (d->>'equipo_id')::uuid, d->>'actividad',
       coalesce(d->>'sistema', ''), (d->>'prioridad')::prioridad, nullif(d->>'responsable_id', '')::uuid,
       nullif(d->>'planner_id', '')::uuid, (d->>'hh_estimadas')::numeric, coalesce((d->>'dias_estimados')::numeric, 1),
-      (d->>'tecnicos')::int, coalesce((d->>'fecha_ingreso')::date, hoy()), (d->>'inicio_programado')::date,
+      d->>'tecnicos', coalesce((d->>'fecha_ingreso')::date, hoy()), (d->>'inicio_programado')::date,
       coalesce((d->>'inicio_original')::date, (d->>'inicio_programado')::date), (d->>'inicio_real')::date,
       (d->>'fin_real')::date, (d->>'hh_reales')::numeric, d->>'ejecutado_por', (d->>'horometro')::numeric,
       d->>'no_ot', d->>'observaciones', nullif(d->>'estado_manual', '')::estado_manual)
@@ -263,7 +263,7 @@ begin
     update bkl set equipo_id = (d->>'equipo_id')::uuid, actividad = d->>'actividad', sistema = coalesce(d->>'sistema', ''),
       prioridad = (d->>'prioridad')::prioridad, responsable_id = nullif(d->>'responsable_id', '')::uuid,
       planner_id = nullif(d->>'planner_id', '')::uuid, hh_estimadas = (d->>'hh_estimadas')::numeric,
-      dias_estimados = coalesce((d->>'dias_estimados')::numeric, 1), tecnicos = (d->>'tecnicos')::int,
+      dias_estimados = coalesce((d->>'dias_estimados')::numeric, 1), tecnicos = d->>'tecnicos',
       fecha_ingreso = (d->>'fecha_ingreso')::date, inicio_programado = (d->>'inicio_programado')::date,
       inicio_original = coalesce((d->>'inicio_original')::date, inicio_original), inicio_real = (d->>'inicio_real')::date,
       fin_real = (d->>'fin_real')::date, hh_reales = (d->>'hh_reales')::numeric, ejecutado_por = d->>'ejecutado_por',
