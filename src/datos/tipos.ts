@@ -58,6 +58,10 @@ export interface Repos {
   perfiles: {
     listar(): Promise<Perfil[]>;
     actual(): Promise<Perfil | null>;
+    /** Cambia nombre, rol, HH/semana o activo (solo admin). */
+    guardar(p: Perfil): Promise<void>;
+    /** Crea usuario + perfil (función segura crear-usuario en Supabase). */
+    crear(p: Omit<Perfil, 'id'>, clave: string): Promise<void>;
   };
   parametros: {
     obtener(): Promise<Parametros>;

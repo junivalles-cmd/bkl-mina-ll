@@ -48,6 +48,18 @@ export function reposSupabase(sb: SupabaseClient): Repos {
         const r = await sb.from('perfil').select('*').eq('id', data.user.id).maybeSingle();
         return r.data ? filaAPerfil(r.data) : null;
       },
+      async guardar(p) {
+        revisar(await sb.from('perfil').update({ nombre: p.nombre, rol: p.rol, hh_semana: p.hhSemana, activo: p.activo, correo: p.correo }).eq('id', p.id));
+      },
+      async crear(p, clave) {
+        const { data, error } = await sb.functions.invoke('crear-usuario', { body: { usuario: p.usuario, nombre: p.nombre, correo: p.correo, rol: p.rol, hh_semana: p.hhSemana, clave } });
+        if (error) {
+          const ctx = (error as { context?: Response }).context;
+          const cuerpo = ctx && typeof ctx.json === 'function' ? await ctx.json().catch(() => null) : null;
+          throw new Error(cuerpo?.error ?? error.message);
+        }
+        if (data?.error) throw new Error(data.error);
+      },
     },
     parametros: {
       async obtener() {

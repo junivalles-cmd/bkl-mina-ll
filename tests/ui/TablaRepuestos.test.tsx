@@ -1,0 +1,29 @@
+import { describe, it, expect } from 'vitest';
+import { useState } from 'react';
+import { render, screen, fireEvent } from '@testing-library/react';
+import { TablaRepuestos } from '../../src/ui/componentes/TablaRepuestos';
+import type { RepuestoDatos } from '../../src/dominio/repuesto';
+
+function Envoltura() {
+  const [v, setV] = useState<RepuestoDatos[]>([]);
+  return <TablaRepuestos valor={v} onCambio={setV} tareas={[1]} editable />;
+}
+
+describe('TablaRepuestos', () => {
+  it('pegar desde Excel agrega filas y calcula el total', () => {
+    render(<Envoltura />);
+    fireEvent.click(screen.getByRole('button', { name: /pegar desde excel/i }));
+    fireEvent.change(screen.getByLabelText(/filas copiadas/i), { target: { value: '81380\t4364440\tTAPON\t2\t1\tNIMAC\tC1-2A3\t18.05\tDISPONIBLE\nmal\t\t\t\t' } });
+    expect(screen.getByText(/1 fila lista/i)).toBeInTheDocument();
+    expect(screen.getByText('Fila 2: falta No. parte o descripción')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /agregar 1/i }));
+    expect(screen.getByDisplayValue('4364440')).toBeInTheDocument();
+    expect(screen.getByText('USD 36.10')).toBeInTheDocument();
+  });
+  it('pegar directo sobre la tabla también funciona', () => {
+    render(<Envoltura />);
+    fireEvent.paste(screen.getByTestId('zona-repuestos'), { clipboardData: { getData: () => '1\tP-9\tFILTRO\t3\t\t\t\t10' } });
+    expect(screen.getByDisplayValue('P-9')).toBeInTheDocument();
+    expect(screen.getByText('USD 30.00')).toBeInTheDocument();
+  });
+});

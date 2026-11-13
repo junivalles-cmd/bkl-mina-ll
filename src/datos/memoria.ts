@@ -28,7 +28,7 @@ export function reposEnMemoria(inicial: { equipos?: Equipo[]; perfiles?: Perfil[
     return new Bkl(d);
   };
   const ev = (n: number, tipo: string, detalle: Record<string, unknown> = {}) =>
-    eventos.set(n, [...(eventos.get(n) ?? []), { tipo, detalle, fecha: new Date().toISOString(), usuario: inicial.actual ?? null }]);
+    eventos.set(n, [...(eventos.get(n) ?? []), { tipo, detalle, fecha: new Date().toISOString(), usuario: perfiles.find((p) => p.id === inicial.actual)?.nombre ?? null }]);
 
   return {
     equipos: {
@@ -44,6 +44,11 @@ export function reposEnMemoria(inicial: { equipos?: Equipo[]; perfiles?: Perfil[
     perfiles: {
       async listar() { return perfiles.map((p) => ({ ...p })); },
       async actual() { return perfiles.find((p) => p.id === inicial.actual) ?? null; },
+      async guardar(p) { const i = perfiles.findIndex((x) => x.id === p.id); if (i >= 0) perfiles[i] = { ...p }; },
+      async crear(p) {
+        if (perfiles.some((x) => x.usuario === p.usuario)) throw new Error('Ese usuario ya existe.');
+        perfiles.push({ ...p, id: nuevoId() });
+      },
     },
     parametros: {
       async obtener() { return { ...parametros }; },
