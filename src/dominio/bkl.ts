@@ -202,6 +202,7 @@ export class Bkl {
     if (d.diasEstimados < 0 || (d.hhEstimadas !== null && d.hhEstimadas < 0)) throw new ReglaNegocioError('Días y HH no pueden ser negativos.');
     const ordenes = new Set(d.tareas.map((t) => t.orden));
     for (const r of d.repuestos) {
+      if (!r.numeroParte.trim() && !r.descripcion.trim()) throw new ReglaNegocioError(`Hay un repuesto sin No. parte ni descripción${r.codigoGp ? ` (código ${r.codigoGp})` : ''}.`);
       if (r.cantidad <= 0) throw new ReglaNegocioError(`Cantidad inválida en ${r.numeroParte || r.descripcion}.`);
       if (r.tareaOrden !== null && !ordenes.has(r.tareaOrden)) throw new ReglaNegocioError(`El repuesto ${r.numeroParte || r.descripcion} apunta a la tarea ${r.tareaOrden}, que no existe.`);
     }

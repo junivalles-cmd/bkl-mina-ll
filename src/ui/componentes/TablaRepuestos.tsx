@@ -1,5 +1,5 @@
 import { useMemo, useState, type ClipboardEvent } from 'react';
-import { CAMPOS_PEGADO, PegadoExcel, leerNumero, type CampoPegado } from '../../dominio/pegadoExcel';
+import { CAMPOS_PEGADO, PegadoExcel, leerNumero, pegarEnCelda, type CampoPegado, type CampoTabla } from '../../dominio/pegadoExcel';
 import { Repuesto, type RepuestoDatos } from '../../dominio/repuesto';
 import { dinero } from '../formato';
 
@@ -34,10 +34,13 @@ export function TablaRepuestos({ valor, onCambio, tareas, editable = false, tipo
   }, [texto]);
   const mapeo = mapeoUsuario && mapeoUsuario.length === analisis.columnas ? mapeoUsuario : analisis.mapeo;
   const vista = useMemo(() => PegadoExcel.convertir({ filas: analisis.filas, mapeo }, tipoCambio), [analisis, mapeo, tipoCambio]);
+  const [avisos, setAvisos] = useState<string[]>([]);
   const cerrarPegado = () => { setTexto(''); setMapeoUsuario(null); setPegando(false); };
   const total = valor.reduce((s, r) => s + new Repuesto(r).total(), 0);
+  // con la tabla vacía se muestra una fila en blanco para poder pegar columna por columna
+  const lista = editable && valor.length === 0 ? [vacio()] : valor;
 
-  const cambiar = (i: number, c: Partial<RepuestoDatos>) => onCambio?.(valor.map((r, j) => (j === i ? { ...r, ...c } : r)));
+  const cambiar = (i: number, c: Partial<RepuestoDatos>) => onCambio?.(lista.map((r, j) => (j === i ? { ...r, ...c } : r)));
   const agregar = (filas: RepuestoDatos[]) => onCambio?.([...valor, ...filas]);
 
   const alPegar = (e: ClipboardEvent<HTMLDivElement>) => {
@@ -45,6 +48,17 @@ export function TablaRepuestos({ valor, onCambio, tareas, editable = false, tipo
     const t = e.clipboardData.getData('text/plain') || e.clipboardData.getData('text');
     const destino = e.target as HTMLElement;
     if (destino.tagName === 'TEXTAREA') return;
+    const campo = destino.getAttribute('data-campo') as CampoTabla | null;
+    const filaCelda = destino.getAttribute('data-fila');
+    if (campo && filaCelda !== null) {
+      // pegado como en Excel: desde esta celda hacia abajo (y hacia la derecha si trae varias columnas)
+      if (!t.includes('\t') && !t.replace(/\r?\n$/, '').includes('\n')) return; // un solo valor: pegado normal en la celda
+      e.preventDefault();
+      const r = pegarEnCelda(lista, Number(filaCelda), campo, t);
+      onCambio?.(r.filas);
+      setAvisos(r.errores);
+      return;
+    }
     if (!t.includes('\t') && !t.includes('\n')) return; // pegado normal dentro de una celda
     e.preventDefault();
     setMapeoUsuario(null);
@@ -61,7 +75,7 @@ export function TablaRepuestos({ valor, onCambio, tareas, editable = false, tipo
         <div className="mb-2 flex flex-wrap items-center gap-2 no-imprimir">
           <button type="button" className="btn" onClick={() => setPegando(true)}>📋 Pegar desde Excel</button>
           <button type="button" className="btn" onClick={() => agregar([vacio()])}>+ Fila</button>
-          <span className="text-xs text-slate-500">Orden: Cód. GP · No. parte · Descripción · Cant. · Tarea · Almacén · Ubicación · P. Und USD · Stock. También acepta la lista de la Consulta de Repuestos y puedes pegar directo sobre la tabla.</span>
+          <span className="text-xs text-slate-500"><b>Columna por columna:</b> haz clic en la primera celda de la columna (ej. No. parte) y pega con Ctrl+V; se llena hacia abajo y agrega filas. <b>Todo junto:</b> botón Pegar desde Excel (reconoce la lista de la Consulta de Repuestos).</span>
         </div>
       )}
       {pegando && (
@@ -111,34 +125,40 @@ export function TablaRepuestos({ valor, onCambio, tareas, editable = false, tipo
           )}
         </div>
       )}
+      {avisos.length > 0 && (
+        <div className="mb-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+          <div className="flex items-start gap-2"><b>Valores que no se pegaron:</b><button type="button" className="ml-auto underline" onClick={() => setAvisos([])}>Ocultar</button></div>
+          <ul className="list-disc pl-5">{avisos.slice(0, 10).map((a, i) => <li key={i}>{a}</li>)}</ul>
+        </div>
+      )}
       <div className="overflow-x-auto">
         <table className="w-full min-w-[900px] text-sm">
           <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
             <tr>
               <th className="px-1 py-1 w-8">#</th><th className="px-1">Cód. GP</th><th className="px-1">No. parte</th><th className="px-1">Descripción</th>
               <th className="px-1 w-16">Cant.</th><th className="px-1 w-16">Tarea</th><th className="px-1">Almacén</th><th className="px-1">Ubicación</th>
-              <th className="px-1 w-24 text-right">P. Und USD</th><th className="px-1 w-24 text-right">Total</th><th className="px-1">Stock / estado</th>
+              <th className="px-1 w-24 text-right">P. Und USD</th><th className="px-1 w-24 text-right">Total</th><th className="px-1 w-36">Stock / estado</th>
               {editable && <th className="w-8" />}
             </tr>
           </thead>
           <tbody>
-            {valor.length === 0 && (
+            {lista.length === 0 && (
               <tr><td colSpan={12} className="px-2 py-4 text-center text-slate-400">Sin repuestos</td></tr>
             )}
-            {valor.map((r, i) => {
+            {lista.map((r, i) => {
               const rep = new Repuesto(r);
               const txt = (k: 'codigoGp' | 'numeroParte' | 'descripcion' | 'almacen' | 'ubicacion') =>
-                editable ? <input aria-label={`${k} ${i + 1}`} className={inp} value={r[k]} onChange={(e) => cambiar(i, { [k]: e.target.value })} /> : r[k];
+                editable ? <input aria-label={`${k} ${i + 1}`} data-fila={i} data-campo={k} className={inp} value={r[k]} onChange={(e) => cambiar(i, { [k]: e.target.value })} /> : r[k];
               return (
                 <tr key={i}>
                   <td className={celda + ' text-slate-400'}>{i + 1}</td>
                   <td className={celda}>{txt('codigoGp')}</td>
                   <td className={celda}>{txt('numeroParte')}</td>
                   <td className={celda}>{txt('descripcion')}</td>
-                  <td className={celda}>{editable ? <input className={inp} inputMode="decimal" defaultValue={r.cantidad} onBlur={(e) => { const n = leerNumero(e.target.value); if (n && n > 0) cambiar(i, { cantidad: n }); else e.target.value = String(r.cantidad); }} /> : r.cantidad}</td>
+                  <td className={celda}>{editable ? <input key={`c${i}-${r.cantidad}`} aria-label={`cantidad ${i + 1}`} data-fila={i} data-campo="cantidad" className={inp} inputMode="decimal" defaultValue={r.cantidad} onBlur={(e) => { const n = leerNumero(e.target.value); if (n && n > 0) cambiar(i, { cantidad: n }); else e.target.value = String(r.cantidad); }} /> : r.cantidad}</td>
                   <td className={celda}>
                     {editable ? (
-                      <select className={inp} value={r.tareaOrden ?? ''} onChange={(e) => cambiar(i, { tareaOrden: e.target.value ? Number(e.target.value) : null })}>
+                      <select aria-label={`tarea ${i + 1}`} data-fila={i} data-campo="tareaOrden" className={inp} value={r.tareaOrden ?? ''} onChange={(e) => cambiar(i, { tareaOrden: e.target.value ? Number(e.target.value) : null })}>
                         <option value="">—</option>
                         {tareas.map((t) => <option key={t} value={t}>{t}</option>)}
                       </select>
@@ -146,17 +166,17 @@ export function TablaRepuestos({ valor, onCambio, tareas, editable = false, tipo
                   </td>
                   <td className={celda}>{txt('almacen')}</td>
                   <td className={celda}>{txt('ubicacion')}</td>
-                  <td className={celda + ' text-right'}>{editable ? <input className={inp + ' text-right'} inputMode="decimal" defaultValue={r.precioUsd} onBlur={(e) => { const n = leerNumero(e.target.value); if (n !== null && n >= 0) cambiar(i, { precioUsd: n }); else e.target.value = String(r.precioUsd); }} /> : dinero(r.precioUsd)}</td>
+                  <td className={celda + ' text-right'}>{editable ? <input key={`p${i}-${r.precioUsd}`} aria-label={`precio ${i + 1}`} data-fila={i} data-campo="precioUsd" className={inp + ' text-right'} inputMode="decimal" defaultValue={r.precioUsd} onBlur={(e) => { const n = leerNumero(e.target.value); if (n !== null && n >= 0) cambiar(i, { precioUsd: n }); else e.target.value = String(r.precioUsd); }} /> : dinero(r.precioUsd)}</td>
                   <td className={celda + ' text-right tabular-nums'}>{dinero(rep.total())}</td>
                   <td className={celda}>
                     {editable && !r.sc ? (
-                      <select className={inp} value={r.stock} onChange={(e) => cambiar(i, { stock: e.target.value as RepuestoDatos['stock'] })}>
+                      <select aria-label={`stock ${i + 1}`} data-fila={i} data-campo="stock" className={inp} value={r.stock} onChange={(e) => cambiar(i, { stock: e.target.value as RepuestoDatos['stock'] })}>
                         <option value="disponible">DISPONIBLE</option>
                         <option value="pedir">PEDIR</option>
                       </select>
                     ) : <span className={rep.porPedir() ? 'font-semibold text-red-700' : rep.enSc() ? 'text-amber-700' : 'text-emerald-700'}>{rep.estadoTexto()}</span>}
                   </td>
-                  {editable && <td className={celda}><button type="button" aria-label={`Quitar fila ${i + 1}`} className="text-slate-400 hover:text-red-600" onClick={() => onCambio?.(valor.filter((_, j) => j !== i))}>✕</button></td>}
+                  {editable && <td className={celda}><button type="button" aria-label={`Quitar fila ${i + 1}`} className="text-slate-400 hover:text-red-600" onClick={() => onCambio?.(lista.filter((_, j) => j !== i))}>✕</button></td>}
                 </tr>
               );
             })}

@@ -55,7 +55,8 @@ export function BklFormulario() {
     actividad: f.actividad.trim(), sistema: f.sistema.trim(), prioridad: f.prioridad, origen: f.origen || null, origenRef: f.origenRef.trim() || null, responsableId: f.responsableId || null, plannerId: f.plannerId || null,
     hhEstimadas: n(f.hhEstimadas), diasEstimados: n(f.diasEstimados) ?? p.diasEstimadosDef, tecnicos: f.tecnicos.trim() || null, fechaIngreso: f.fechaIngreso,
     inicioProgramado: f.inicioProgramado || null, noOt: f.noOt.trim() || null, horometro: n(f.horometro), observaciones: f.observaciones.trim() || null,
-    tareas: f.tareas.filter((t) => t.descripcion.trim()).map((t, i) => ({ ...t, orden: i + 1, descripcion: t.descripcion.trim() })), repuestos: f.repuestos,
+    tareas: f.tareas.filter((t) => t.descripcion.trim()).map((t, i) => ({ ...t, orden: i + 1, descripcion: t.descripcion.trim() })),
+    repuestos: f.repuestos.filter((r) => r.codigoGp.trim() || r.numeroParte.trim() || r.descripcion.trim() || r.almacen.trim() || r.precioUsd > 0),
   });
 
   const vista = useMemo(() => {

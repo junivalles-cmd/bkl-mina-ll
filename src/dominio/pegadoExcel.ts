@@ -150,3 +150,68 @@ export const PegadoExcel = {
     return this.convertir(this.analizar(texto), tipoCambio);
   },
 };
+
+/** Columnas de la tabla de repuestos, en el orden en que se ven. */
+export type CampoTabla = 'codigoGp' | 'numeroParte' | 'descripcion' | 'cantidad' | 'tareaOrden' | 'almacen' | 'ubicacion' | 'precioUsd' | 'stock';
+export const COLUMNAS_TABLA: CampoTabla[] = ['codigoGp', 'numeroParte', 'descripcion', 'cantidad', 'tareaOrden', 'almacen', 'ubicacion', 'precioUsd', 'stock'];
+const NOMBRE_COL: Record<CampoTabla, string> = {
+  codigoGp: 'código GP', numeroParte: 'No. parte', descripcion: 'descripción', cantidad: 'cantidad', tareaOrden: 'tarea',
+  almacen: 'almacén', ubicacion: 'ubicación', precioUsd: 'precio', stock: 'stock',
+};
+
+/**
+ * Pega como en Excel: desde la celda (fila, campo) hacia abajo y hacia la derecha.
+ * Crea filas si faltan. Devuelve las filas nuevas y los valores que no se pudieron usar.
+ */
+export function pegarEnCelda(actuales: RepuestoDatos[], fila: number, campo: CampoTabla, texto: string): { filas: RepuestoDatos[]; errores: string[] } {
+  const lineas = texto.replace(/\r\n?/g, '\n').replace(/\n+$/, '').split('\n');
+  const filas = actuales.map((r) => ({ ...r }));
+  const errores: string[] = [];
+  const col0 = COLUMNAS_TABLA.indexOf(campo);
+  lineas.forEach((linea, k) => {
+    const i = fila + k;
+    while (filas.length <= i) filas.push({ codigoGp: '', numeroParte: '', descripcion: '', cantidad: 1, tareaOrden: null, almacen: '', ubicacion: '', precioUsd: 0, stock: 'pedir' });
+    const r = filas[i];
+    let tocoAlmacen = false;
+    let tocoStock = false;
+    linea.split('\t').forEach((valor, j) => {
+      const c = COLUMNAS_TABLA[col0 + j];
+      if (!c) return;
+      const v = valor.trim();
+      const mal = (txt = `${NOMBRE_COL[c]} "${v}" no válida`) => errores.push(`Fila ${i + 1}: ${txt}`);
+      switch (c) {
+        case 'cantidad': {
+          if (v === '') return;
+          const n = leerNumero(v);
+          if (n === null || n <= 0) return mal();
+          r.cantidad = n; return;
+        }
+        case 'precioUsd': {
+          if (v === '') { r.precioUsd = 0; return; }
+          const n = leerNumero(v);
+          if (n === null || n < 0) return mal(`precio "${v}" no válido`);
+          r.precioUsd = n; return;
+        }
+        case 'tareaOrden': {
+          if (v === '') { r.tareaOrden = null; return; }
+          const n = leerNumero(v);
+          if (n === null || !Number.isInteger(n) || n < 1 || n > 20) return mal(`tarea "${v}" no válida`);
+          r.tareaOrden = n; return;
+        }
+        case 'stock': {
+          const s = v.toUpperCase();
+          if (s === '') return;
+          if (s !== 'DISPONIBLE' && s !== 'PEDIR') return mal(`stock "${v}" debe ser DISPONIBLE o PEDIR`);
+          if (!r.sc) r.stock = s === 'PEDIR' ? 'pedir' : 'disponible';
+          tocoStock = true; return;
+        }
+        case 'almacen':
+          r.almacen = v; tocoAlmacen = true; return;
+        default:
+          r[c] = v;
+      }
+    });
+    if (tocoAlmacen && !tocoStock && !r.sc) r.stock = r.almacen ? 'disponible' : 'pedir';
+  });
+  return { filas, errores };
+}

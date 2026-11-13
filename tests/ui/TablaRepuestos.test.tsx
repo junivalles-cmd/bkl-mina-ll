@@ -40,3 +40,16 @@ describe('TablaRepuestos', () => {
     expect(screen.getAllByDisplayValue('CONSIGNADO NIMAC')).toHaveLength(1);
   });
 });
+
+describe('TablaRepuestos columna por columna', () => {
+  it('pegar una columna en la celda llena hacia abajo y otra columna después', () => {
+    render(<Envoltura />);
+    fireEvent.paste(screen.getByLabelText('numeroParte 1'), { clipboardData: { getData: () => '1R-0716\n4364440\n2435336\n' } });
+    expect(screen.getByLabelText('numeroParte 3')).toHaveValue('2435336');
+    fireEvent.paste(screen.getByLabelText('cantidad 1'), { clipboardData: { getData: () => '2\n4\n1' } });
+    fireEvent.paste(screen.getByLabelText('precio 1'), { clipboardData: { getData: () => '10\n2.5\n100' } });
+    expect(screen.getByText('USD 130.00')).toBeInTheDocument();
+    fireEvent.paste(screen.getByLabelText('cantidad 3'), { clipboardData: { getData: () => 'tres\n0' } });
+    expect(screen.getByText(/cantidad "tres" no válida/)).toBeInTheDocument();
+  });
+});
